@@ -104,7 +104,7 @@ abstract class ServiceApi extends CComponent
 	 * @param array $array
 	 * @return array
 	 */
-	public function checkParams($name, $array)
+	protected function checkParams($name, $array)
 	{
 		$data = array();
 		if ($name && $array)
