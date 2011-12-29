@@ -7,8 +7,8 @@
  * Базовый класс для создания интерфейсов доступа к xml-данным различных сервисов.
  *
  * Магия:
- * @property array $methodsList
- * @property string $latestUrl
+ * @property string $latestUrl последний запрошенный URL со всем параметрами
+ * @property array $methodsList массив вариаций запроса
  */
 abstract class ServiceApi extends CComponent
 {
@@ -17,7 +17,7 @@ abstract class ServiceApi extends CComponent
 	 */
 	protected $url;
 	/**
-	 * @var string последний запрошенный URL со всем параметрами
+	 * @var string
 	 */
 	protected $_latestUrl;
 
@@ -76,7 +76,7 @@ abstract class ServiceApi extends CComponent
 		);
 
 		if ($response === false)
-			throw new CException('URL '.$this->url.' is not responding.');
+			throw new CException('URL '.$this->_latestUrl.' is not responding.');
 
 		return $parse ? $this->parseResponse($response) : $response;
 	}
@@ -93,6 +93,17 @@ abstract class ServiceApi extends CComponent
 	}
 
 	/**
+	 * Возвращет массив вариаций запроса в формате
+	 * array(
+	 *     'method_name_1'=>array(
+	 *         'url'=>'/some_url_ending_1.php',
+	 *         'params'=>array('param1', 'param2', 'param3')
+	 *     ),
+	 *     'method_name_2'=>array(
+	 *         'url'=>'/some_url_ending_2.php',
+	 *         'params'=>array('param1', 'param2', 'param3')
+	 *     )
+	 * );
 	 * @return array
 	 */
 	public function getMethodsList() {
@@ -100,8 +111,9 @@ abstract class ServiceApi extends CComponent
 	}
 
 	/**
-	 * @param string $name
-	 * @param array $array
+	 * Сверяет массив переданных параметров с массивом допустимых параметров метода, возвращает только нужные
+	 * @param string $name название метода из getMethodsList()
+	 * @param array $array параметры для проверки
 	 * @return array
 	 */
 	protected function checkParams($name, $array)
@@ -113,7 +125,7 @@ abstract class ServiceApi extends CComponent
 			foreach ($array as $key=>$p)
 			{
 				if (in_array($key, $method))
-					$data[$key] = $this->checkParamType($p);
+					$this->checkParamType($data, $key, $p, $name);
 			}
 		}
 
@@ -121,9 +133,14 @@ abstract class ServiceApi extends CComponent
 	}
 
 	/**
+	 * Выполняет проверку параметров и преобразовывает в требуемый формат
+	 * @param array $data ссылка на окончательный массив параметров
+	 * @param string $key ключ массива - имя параметра
+	 * @param mixed $param значение проверяемого параметра
+	 * @param string $methodname имя матода из getMethodsList()
 	 * @return mixed
 	 */
-	protected function checkParamType($param) {
-		return $param;
+	protected function checkParamType(&$data, $key, $param, $methodname) {
+		$data[$key] = $param;
 	}
 }
