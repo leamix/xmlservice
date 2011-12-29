@@ -85,7 +85,7 @@ abstract class ServiceApi extends CComponent
 	 * Преобразовывает строку с xml-данными в ассоциативный массив.
 	 * Хитрый способ преобразования найден на php.net {@link http://ru.php.net/manual/en/function.simplexml-load-string.php#102277}
 	 *
-	 * @param string $xmldata
+	 * @param string $xmldata строка с xml
 	 * @return array
 	 */
 	public function parseResponse($xmldata) {
