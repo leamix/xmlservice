@@ -67,8 +67,7 @@ abstract class ServiceApi extends CComponent
 		else
 			$data = '';
 
-		if (YII_DEBUG)
-			Yii::trace('Creating request to '.$url, get_class($this));
+		Yii::trace('Creating request to '.$url, get_class($this));
 
 		$response = @file_get_contents(
 			$this->_latestUrl = $url.$data, null,
