@@ -48,7 +48,7 @@ class IpGeobaseApi extends ServiceApi
 	 * @static
 	 * @param string $ip
 	 * @param bool $parse
-	 * @return array
+	 * @return array|string
 	 */
 	public static function defineRegion($ip='', $parse=true)
 	{
@@ -60,7 +60,7 @@ class IpGeobaseApi extends ServiceApi
 
 	/**
 	 * @param bool $parse
-	 * @return array
+	 * @return array|string
 	 */
 	public function getIpData($parse=true)
 	{

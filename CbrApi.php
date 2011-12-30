@@ -53,9 +53,6 @@ class CbrApi extends ServiceApi
 			return parent::__call($name,$parameters);
 	}
 
-	/**
-	 * @return array
-	 */
 	public function getMethodsList()
 	{
 		return array(

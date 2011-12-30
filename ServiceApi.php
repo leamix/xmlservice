@@ -59,7 +59,7 @@ abstract class ServiceApi extends CComponent
 	 */
 	protected function response($params=array(), $url='', $parse=true)
 	{
-		if ($url==='')
+		if ($url === '')
 			$url = $this->url;
 
 		if (!empty($params))
@@ -138,7 +138,7 @@ abstract class ServiceApi extends CComponent
 	 * @param string $key ключ массива - имя параметра
 	 * @param mixed $param значение проверяемого параметра
 	 * @param string $methodname имя матода из getMethodsList()
-	 * @return mixed
+	 * @return void
 	 */
 	protected function checkParamType(&$data, $key, $param, $methodname) {
 		$data[$key] = $param;
