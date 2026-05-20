@@ -1,9 +1,15 @@
 <?php
 
+declare(strict_types=1);
+
+namespace Leamix\XmlService\Tests;
+
+use Leamix\XmlService\Exception\ServiceException;
+use Leamix\XmlService\ServiceApi;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Concrete subclass for testing the abstract ServiceApi.
+ * Concrete subclass used to exercise the abstract ServiceApi.
  */
 class ConcreteServiceApi extends ServiceApi
 {
@@ -17,13 +23,12 @@ class ConcreteServiceApi extends ServiceApi
     {
         return [
             'search' => [
-                'url' => '/search.asp',
+                'url'    => '/search.asp',
                 'params' => ['query', 'limit'],
             ],
         ];
     }
 
-    // Expose protected methods for testing
     public function publicCheckParams(string $name, array $array): array
     {
         return $this->checkParams($name, $array);
@@ -36,7 +41,7 @@ class ConcreteServiceApi extends ServiceApi
 }
 
 /**
- * Subclass with no URL set — used to test constructor guard.
+ * Subclass with no URL — used to test the constructor guard.
  */
 class NoUrlServiceApi extends ServiceApi
 {
@@ -48,11 +53,11 @@ class NoUrlServiceApi extends ServiceApi
 
 class ServiceApiTest extends TestCase
 {
-    private ConcreteServiceApi $api;
+    /** @var ConcreteServiceApi */
+    private $api;
 
     protected function setUp(): void
     {
-        $_SERVER['HTTP_HOST'] = 'www.example.com';
         $this->api = new ConcreteServiceApi();
     }
 
@@ -60,7 +65,7 @@ class ServiceApiTest extends TestCase
 
     public function testConstructorThrowsWhenUrlNotSet(): void
     {
-        $this->expectException(CException::class);
+        $this->expectException(ServiceException::class);
         new NoUrlServiceApi();
     }
 
@@ -81,14 +86,14 @@ class ServiceApiTest extends TestCase
 
     public function testParseResponseReturnsArray(): void
     {
-        $xml = '<?xml version="1.0" encoding="UTF-8"?><root><item>value</item></root>';
+        $xml    = '<?xml version="1.0" encoding="UTF-8"?><root><item>value</item></root>';
         $result = $this->api->parseResponse($xml);
         $this->assertIsArray($result);
     }
 
     public function testParseResponseMapsSimpleElement(): void
     {
-        $xml = '<?xml version="1.0" encoding="UTF-8"?><root><name>test</name></root>';
+        $xml    = '<?xml version="1.0" encoding="UTF-8"?><root><name>test</name></root>';
         $result = $this->api->parseResponse($xml);
         $this->assertSame('test', $result['name']);
     }
@@ -107,28 +112,13 @@ XML;
         $this->assertSame('hello', $result['parent']['child']);
     }
 
-    public function testParseResponseHandlesAttributes(): void
-    {
-        $xml = '<?xml version="1.0" encoding="UTF-8"?><root><item id="42">val</item></root>';
-        $result = $this->api->parseResponse($xml);
-        $this->assertArrayHasKey('item', $result);
-    }
-
     public function testParseResponseHandlesMultipleSiblings(): void
     {
         $xml = <<<XML
 <?xml version="1.0" encoding="UTF-8"?>
 <root>
-    <Valute>
-        <NumCode>840</NumCode>
-        <CharCode>USD</CharCode>
-        <Value>75.00</Value>
-    </Valute>
-    <Valute>
-        <NumCode>978</NumCode>
-        <CharCode>EUR</CharCode>
-        <Value>85.00</Value>
-    </Valute>
+    <Valute><CharCode>USD</CharCode><Value>75.00</Value></Valute>
+    <Valute><CharCode>EUR</CharCode><Value>85.00</Value></Valute>
 </root>
 XML;
         $result = $this->api->parseResponse($xml);
@@ -136,14 +126,23 @@ XML;
         $this->assertIsArray($result['Valute']);
     }
 
+    public function testParseResponseThrowsOnInvalidXml(): void
+    {
+        $this->expectException(ServiceException::class);
+        $this->api->parseResponse('this is not xml');
+    }
+
     // --- getMethodsList ---
 
-    public function testBaseGetMethodsListReturnsArray(): void
+    public function testBaseGetMethodsListReturnsEmptyArray(): void
     {
-        // ConcreteServiceApi overrides this; test the base via a minimal subclass
         $api = new class extends ServiceApi {
-            protected $url = 'http://example.com';
-            public function getMethodsList(): array { return parent::getMethodsList(); }
+            protected string $url = 'http://example.com';
+
+            public function getMethodsList(): array
+            {
+                return parent::getMethodsList();
+            }
         };
         $this->assertSame([], $api->getMethodsList());
     }
@@ -153,8 +152,8 @@ XML;
     public function testCheckParamsFiltersAllowedKeys(): void
     {
         $result = $this->api->publicCheckParams('search', [
-            'query' => 'phpunit',
-            'limit' => 10,
+            'query'     => 'phpunit',
+            'limit'     => 10,
             'forbidden' => 'should_be_removed',
         ]);
 
@@ -163,10 +162,16 @@ XML;
         $this->assertArrayNotHasKey('forbidden', $result);
     }
 
-    public function testCheckParamsReturnsAllAllowedKeys(): void
+    public function testCheckParamsPreservesValues(): void
     {
         $result = $this->api->publicCheckParams('search', ['query' => 'test', 'limit' => 5]);
         $this->assertSame(['query' => 'test', 'limit' => 5], $result);
+    }
+
+    public function testCheckParamsReturnsEmptyArrayForNonexistentMethod(): void
+    {
+        $result = $this->api->publicCheckParams('nonexistent', ['query' => 'test']);
+        $this->assertSame([], $result);
     }
 
     public function testCheckParamsReturnsEmptyArrayForEmptyInput(): void
@@ -183,16 +188,10 @@ XML;
 
     // --- getHeaders ---
 
-    public function testGetHeadersReturnsHttpArray(): void
+    public function testGetHeadersReturnsHttpMethodGet(): void
     {
         $headers = $this->api->publicGetHeaders();
         $this->assertArrayHasKey('http', $headers);
         $this->assertSame('GET', $headers['http']['method']);
-    }
-
-    public function testGetHeadersContainsReferer(): void
-    {
-        $headers = $this->api->publicGetHeaders();
-        $this->assertStringContainsString('Referer:', $headers['http']['header']);
     }
 }

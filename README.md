@@ -1,28 +1,27 @@
 # xmlservice
 
-PHP-библиотека для работы с XML-сервисами через единый базовый класс. Включает готовые адаптеры для Центробанка РФ и сервиса геолокации по IP.
+Framework-agnostic PHP library for consuming XML web services through a shared base class. Ships with a ready-made adapter for the Central Bank of Russia (CBR) XML API.
 
 ---
 
-## Классы
+## Classes
 
-| Класс | Описание |
+| Class | Description |
 |---|---|
-| `ServiceApi` | Абстрактный базовый класс. Выполняет HTTP-запросы и парсит XML-ответы в ассоциативный массив. |
-| `CbrApi` | Доступ к XML-сервису ЦБ РФ (cbr.ru): курсы валют, ставки МБК, депозиты, монеты и др. |
-| `IpGeobaseApi` | Определение города, региона и координат по IP-адресу через ipgeobase.ru. |
+| `Leamix\XmlService\ServiceApi` | Abstract base. Sends HTTP GET requests and parses XML responses into associative arrays. |
+| `Leamix\XmlService\CbrApi` | CBR adapter: currency rates, interbank rates, BIC lookup, deposit operations, investment coins, and more. |
+| `Leamix\XmlService\Exception\ServiceException` | Thrown on connection failures and malformed XML. |
 
 ---
 
-## Требования
+## Requirements
 
-- PHP 7.4+
-- Yii Framework 1.x (в окружении приложения)
-- Для запуска тестов: Composer
+- PHP >= 7.4
+- Composer
 
 ---
 
-## Установка
+## Installation
 
 ```bash
 git clone https://github.com/leamix/xmlservice.git
@@ -30,63 +29,75 @@ cd xmlservice
 composer install
 ```
 
-Скопируйте файлы классов в папку `protected/components/` (или в любую другую директорию, подключённую автозагрузкой Yii).
+Copy the `src/` directory into your project and register the namespace with Composer's PSR-4 autoloader.
 
 ---
 
-## Использование
+## Usage
 
-### CbrApi — курсы валют
+### CbrApi — currency rates
 
 ```php
-$cbr = new CbrApi;
+use Leamix\XmlService\CbrApi;
+use Leamix\XmlService\Exception\ServiceException;
 
-// Курс на сегодня
-$data = $cbr->daily(['date_req' => date('d/m/Y')]);
-echo 'USD: ' . $data['Valute'][9]['Value'];
+$cbr = new CbrApi();
 
-// Динамика курса доллара за период
-$data = $cbr->dynamic([
-    'date_req1' => '01/01/2024',
-    'date_req2' => '31/01/2024',
-    'VAL_NM_RQ' => 'R01235',
-]);
+try {
+    // Today's rates (parsed array)
+    $data = $cbr->daily(['date_req' => date('d/m/Y')]);
+    echo 'USD: ' . $data['Valute'][9]['Value'];
 
-// Поиск по сайту ЦБ
-$data = $cbr->search(['SearchString' => 'ключевая ставка']);
+    // Historical rate series for USD
+    $data = $cbr->dynamic([
+        'date_req1' => '01/01/2024',
+        'date_req2' => '31/01/2024',
+        'VAL_NM_RQ' => 'R01235',
+    ]);
 
-// Получить сырой XML без парсинга
-$xml = $cbr->daily(['date_req' => date('d/m/Y')], false);
+    // Full-text search on cbr.ru
+    $data = $cbr->search(['SearchString' => 'key rate']);
+
+    // Raw XML without parsing
+    $xml = $cbr->daily(['date_req' => date('d/m/Y')], false);
+
+} catch (ServiceException $e) {
+    echo 'Error: ' . $e->getMessage();
+}
 ```
 
-#### Доступные методы CbrApi
+#### Available methods
 
-| Метод | Описание | Параметры |
+| Method | Description | Parameters |
 |---|---|---|
-| `daily` | Курсы валют на дату | `date_req` |
-| `daily_eng` | Курсы валют (англ.) | `date_req` |
-| `dynamic` | Динамика курса валюты | `date_req1`, `date_req2`, `VAL_NM_RQ` |
-| `ostat` | Остатки на корсчетах | `date_req1`, `date_req2` |
-| `mkr` | Ставки МБК | `date_req1`, `date_req2` |
-| `depo` | Депозитные операции | `date_req1`, `date_req2` |
-| `search` | Поиск | `SearchString` |
-| `news` | Новости | — |
-| `bic` | БИК кредитных организаций | `name`, `bic` |
-| `swap` | Ставки валютного свопа | `date_req1`, `date_req2` |
-| `coins` | Цены на инвестмонеты | `date_req1`, `date_req2` |
+| `daily` | Currency rates for a date | `date_req` |
+| `daily_eng` | Currency rates, English | `date_req` |
+| `dynamic` | Rate history for a currency | `date_req1`, `date_req2`, `VAL_NM_RQ` |
+| `ostat` | Correspondent account balances | `date_req1`, `date_req2` |
+| `mkr` | Interbank lending rates | `date_req1`, `date_req2` |
+| `depo` | Deposit operation rates | `date_req1`, `date_req2` |
+| `search` | Full-text search | `SearchString` |
+| `news` | Latest news | — |
+| `bic` | BIC ↔ bank name lookup | `name`, `bic` |
+| `swap` | FX-swap overnight rates | `date_req1`, `date_req2` |
+| `coins` | Investment coin prices | `date_req1`, `date_req2` |
 
 ---
 
-## Расширение
+## Extending
 
-Для подключения нового XML-сервиса достаточно унаследоваться от `ServiceApi`:
+To wrap a new XML service, subclass `ServiceApi` and declare `$url` and `getMethodsList()`:
 
 ```php
+namespace MyApp;
+
+use Leamix\XmlService\ServiceApi;
+
 class MyApi extends ServiceApi
 {
-    protected $url = 'http://api.example.com/';
+    protected string $url = 'https://api.example.com/';
 
-    public function getMethodsList()
+    public function getMethodsList(): array
     {
         return [
             'getData' => [
@@ -100,43 +111,89 @@ class MyApi extends ServiceApi
 
 ---
 
-## Проверка работоспособности
+## Project structure
 
-Скрипт `example.php` выполняет реальные запросы к API и выводит результат в консоль:
+```
+src/
+├── Exception/
+│   └── ServiceException.php   # RuntimeException subclass for library errors
+├── ServiceApi.php              # Abstract base class
+└── CbrApi.php                  # CBR adapter
+
+tests/
+├── bootstrap.php               # Loads the Composer autoloader
+├── ServiceApiTest.php          # Base class tests
+└── CbrApiTest.php              # CBR adapter tests
+```
+
+---
+
+## Smoke test
+
+Run real requests against cbr.ru and print a human-readable report:
 
 ```bash
 php example.php
 ```
 
-## Запуск тестов
+Sample output:
 
-### 1. Установить зависимости
+```
+────────────────────────────────────────────────────────────
+  CbrApi :: daily() — currency rates for today
+────────────────────────────────────────────────────────────
+  [OK]  Request sent: http://www.cbr.ru/scripts/XML_daily.asp?date_req=20%2F05%2F2026
+  Rate date      : 20.05.2026
+  Currencies     : 54
+    USD   71.2926 RUB (lot 1)
+    EUR   82.7871 RUB (lot 1)
+...
+  RESULT: all checks passed.
+```
+
+---
+
+## Running tests
+
+### Install dependencies
 
 ```bash
 composer install
 ```
 
-### 2. Запустить тесты
+### Run the suite
 
 ```bash
 ./vendor/bin/phpunit
 ```
 
-### 3. С подробным выводом
+### Verbose output
 
 ```bash
 ./vendor/bin/phpunit --testdox
 ```
 
-### Структура тестов
+Sample output:
 
 ```
-tests/
-├── bootstrap.php          # Подключение стабов и исходных классов
-├── stubs/
-│   └── YiiStubs.php       # Заглушки для CComponent, CException, Yii
-├── ServiceApiTest.php     # Тесты базового класса
-├── CbrApiTest.php         # Тесты адаптера ЦБ РФ
+CbrApi
+ ✔ Instantiates successfully
+ ✔ Methods list contains all expected keys
+ ✔ Every method entry has url and params keys
+ ✔ Daily accepts date req
+ ...
+
+ServiceApi
+ ✔ Constructor throws when url not set
+ ✔ Parse response maps simple element
+ ✔ Parse response throws on invalid xml
+ ...
+
+OK (31 tests, 93 assertions)
 ```
 
-Стабы позволяют запускать тесты без установленного Yii Framework. Тесты, которые зависят от реальных HTTP-запросов к внешним сервисам, перехватывают сетевой вызов через подкласс с переопределённым методом `response()`.
+---
+
+## Author
+
+Alexander Levin — [x8p@leamix.com](mailto:x8p@leamix.com)

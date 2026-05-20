@@ -1,13 +1,23 @@
 <?php
 
-require_once __DIR__ . '/tests/stubs/YiiStubs.php';
-require_once __DIR__ . '/ServiceApi.php';
-require_once __DIR__ . '/CbrApi.php';
-require_once __DIR__ . '/IpGeobaseApi.php';
+declare(strict_types=1);
 
-$_SERVER['HTTP_HOST'] = 'example.com';
+/**
+ * Smoke test / usage demo for the xmlservice library.
+ *
+ * Run: php example.php
+ */
 
-function header_line(string $title): void
+require_once __DIR__ . '/vendor/autoload.php';
+
+use Leamix\XmlService\CbrApi;
+use Leamix\XmlService\Exception\ServiceException;
+
+// ─────────────────────────────────────────────
+// Output helpers
+// ─────────────────────────────────────────────
+
+function section(string $title): void
 {
     $line = str_repeat('─', 60);
     echo "\n{$line}\n  {$title}\n{$line}\n";
@@ -20,91 +30,85 @@ function info(string $msg): void { echo "  {$msg}\n"; }
 $errors = 0;
 
 // ─────────────────────────────────────────────
-// 1. CbrApi — курс валют на сегодня
+// 1. CbrApi — today's currency rates
 // ─────────────────────────────────────────────
 
-header_line('CbrApi :: daily() — курс валют на сегодня');
+section('CbrApi :: daily() — currency rates for today');
 
 try {
     $cbr  = new CbrApi();
     $date = date('d/m/Y');
     $data = $cbr->daily(['date_req' => $date]);
 
-    ok("Запрос выполнен: " . $cbr->getLatestUrl());
-    info("Дата котировки : " . ($data['@attributes']['Date'] ?? $date));
-    info("Количество валют: " . count($data['Valute'] ?? []));
+    ok('Request sent: ' . $cbr->getLatestUrl());
+    info('Rate date      : ' . ($data['@attributes']['Date'] ?? $date));
+    info('Currencies     : ' . count($data['Valute'] ?? []));
 
-    // Найдём USD и EUR
     foreach (['USD', 'EUR'] as $code) {
         $found = false;
         foreach ($data['Valute'] ?? [] as $v) {
             if (($v['CharCode'] ?? '') === $code) {
-                info(sprintf('  %-4s  %s руб. (номинал %s)', $code, $v['Value'], $v['Nominal']));
+                info(sprintf('  %-4s  %s RUB (lot %s)', $code, $v['Value'], $v['Nominal']));
                 $found = true;
                 break;
             }
         }
         if (!$found) {
-            info("  {$code}: не найден в ответе");
+            info("  {$code}: not found in response");
         }
     }
-} catch (CException $e) {
-    fail("CbrApi::daily() — " . $e->getMessage());
+} catch (ServiceException $e) {
+    fail('CbrApi::daily() — ' . $e->getMessage());
     $errors++;
 }
 
 // ─────────────────────────────────────────────
-// 2. CbrApi — сырой XML (без парсинга)
+// 2. CbrApi — raw XML response
 // ─────────────────────────────────────────────
 
-header_line('CbrApi :: daily() — сырой XML-ответ');
+section('CbrApi :: daily() — raw XML response');
 
 try {
     $cbr = new CbrApi();
     $xml = $cbr->daily(['date_req' => date('d/m/Y')], false);
 
-    if (is_string($xml) && str_contains($xml, '<?xml')) {
-        ok("Получен XML (" . strlen($xml) . " байт)");
+    if (is_string($xml) && strpos($xml, '<?xml') !== false) {
+        ok('Received XML (' . strlen($xml) . ' bytes)');
         info(substr($xml, 0, 200) . ' …');
     } else {
-        fail("Ожидался XML-string, получено: " . gettype($xml));
+        fail('Expected XML string, got: ' . gettype($xml));
         $errors++;
     }
-} catch (CException $e) {
-    fail("CbrApi::daily(parse=false) — " . $e->getMessage());
+} catch (ServiceException $e) {
+    fail('CbrApi::daily(parse=false) — ' . $e->getMessage());
     $errors++;
 }
 
 // ─────────────────────────────────────────────
-// 3. CbrApi — список методов
+// 3. CbrApi — method registry
 // ─────────────────────────────────────────────
 
-header_line('CbrApi :: getMethodsList()');
+section('CbrApi :: getMethodsList()');
 
-$cbr     = new CbrApi();
-$methods = $cbr->getMethodsList();
-$count   = count($methods);
+$cbr   = new CbrApi();
+$count = count($cbr->getMethodsList());
 
 if ($count === 11) {
-    ok("Зарегистрировано {$count} методов: " . implode(', ', array_keys($methods)));
+    ok("Registered {$count} methods: " . implode(', ', array_keys($cbr->getMethodsList())));
 } else {
-    fail("Ожидалось 11 методов, найдено: {$count}");
+    fail("Expected 11 methods, found: {$count}");
     $errors++;
 }
 
 // ─────────────────────────────────────────────
-// Итог
+// Result
 // ─────────────────────────────────────────────
 
 $line = str_repeat('─', 60);
 echo "\n{$line}\n";
-
-if ($errors === 0) {
-    echo "  РЕЗУЛЬТАТ: все проверки прошли успешно.\n";
-} else {
-    echo "  РЕЗУЛЬТАТ: обнаружено критических ошибок — {$errors}.\n";
-}
-
+echo ($errors === 0)
+    ? "  RESULT: all checks passed.\n"
+    : "  RESULT: {$errors} critical error(s) found.\n";
 echo "{$line}\n\n";
 
 exit($errors > 0 ? 1 : 0);
