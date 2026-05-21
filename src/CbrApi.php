@@ -4,128 +4,82 @@ declare(strict_types=1);
 
 namespace Leamix\XmlService;
 
+use JsonException;
 use Leamix\XmlService\Exception\ServiceException;
+use Leamix\XmlService\Http\DefaultHttpClient;
+use Leamix\XmlService\Http\HttpClientInterface;
+use Leamix\XmlService\Request\RequestInterface;
 
 /**
- * Adapter for the Central Bank of Russia XML service (cbr.ru/scripts).
+ * Adapter for the Central Bank of Russia XML service.
  *
- * Provides access to currency rates, interbank rates, BIC lookups,
- * deposit operations, investment coins, and more.
+ * Inject any HttpClientInterface implementation to replace the built-in
+ * file_get_contents transport — useful for adding caching, retries, logging,
+ * or using a PSR-18 client (Guzzle, Symfony HttpClient, etc.) via a thin adapter.
  *
- * Usage:
- *   $cbr  = new CbrApi();
- *   $data = $cbr->daily(['date_req' => date('d/m/Y')]);
- *   echo $data['Valute'][9]['Value']; // USD rate
- *
- * @see http://www.cbr.ru/scripts/Root.asp?Prtid=SXML
- *
- * @method array|string daily(array $params = [], bool $parse = true)
- * @method array|string daily_eng(array $params = [], bool $parse = true)
- * @method array|string dynamic(array $params = [], bool $parse = true)
- * @method array|string ostat(array $params = [], bool $parse = true)
- * @method array|string mkr(array $params = [], bool $parse = true)
- * @method array|string depo(array $params = [], bool $parse = true)
- * @method array|string search(array $params = [], bool $parse = true)
- * @method array|string news(array $params = [], bool $parse = true)
- * @method array|string bic(array $params = [], bool $parse = true)
- * @method array|string swap(array $params = [], bool $parse = true)
- * @method array|string coins(array $params = [], bool $parse = true)
+ * @see https://www.cbr.ru/development/SXML/
  */
-class CbrApi extends ServiceApi
+class CbrApi
 {
-    protected string $url = 'http://www.cbr.ru/scripts/';
+    private const BASE_URL = 'https://www.cbr.ru/scripts/';
 
-    /**
-     * @param string $name
-     * @param array $parameters [0 => params array, 1 => bool parse]
-     * @return array|string
-     * @throws ServiceException on unknown method or connection failure
-     */
-    public function __call(string $name, array $parameters)
+    private HttpClientInterface $http;
+
+    public function __construct(?HttpClientInterface $http = null)
     {
-        $methods = $this->getMethodsList();
-
-        if (!array_key_exists($name, $methods)) {
-            throw new ServiceException(
-                static::class . ' does not have a method named "' . $name . '".',
-            );
-        }
-
-        $url = $this->url . $methods[$name]['url'];
-        $params = $this->checkParams($name, $parameters[0] ?? []);
-        $parse = isset($parameters[1]) ? (bool)$parameters[1] : true;
-
-        return $this->response($params, $url, $parse);
+        $this->http = $http ?? new DefaultHttpClient();
     }
 
-    public function getMethodsList(): array
+    /**
+     * @throws ServiceException on connection failure or malformed XML
+     */
+    public function send(RequestInterface $request): array
     {
-        return [
-            // Daily currency rates for a given date
-            'daily' => [
-                'url' => 'XML_daily.asp',
-                'params' => ['date_req'],
-            ],
+        return $this->parseResponse($this->sendRaw($request));
+    }
 
-            // Daily currency rates (English version)
-            'daily_eng' => [
-                'url' => 'XML_daily_eng.asp',
-                'params' => ['date_req'],
-            ],
+    /**
+     * @throws ServiceException on connection failure
+     */
+    public function sendRaw(RequestInterface $request): string
+    {
+        $params = $request->getParams();
+        $query = $params !== [] ? '?' . http_build_query($params) : '';
+        $url = self::BASE_URL . $request->getEndpoint() . $query;
 
-            // Historical rate series for a currency in a date range
-            'dynamic' => [
-                'url' => 'XML_dynamic.asp',
-                'params' => ['date_req1', 'date_req2', 'VAL_NM_RQ'],
-            ],
+        return $this->http->get($url);
+    }
 
-            // Correspondent account balances of credit institutions
-            'ostat' => [
-                'url' => 'XML_ostat.asp',
-                'params' => ['date_req1', 'date_req2'],
-            ],
+    /**
+     * Convert a raw XML string into a nested associative array.
+     *
+     * Uses the json_encode/json_decode roundtrip: XML attributes are exposed as
+     * '@attributes' keys and repeated sibling elements are collapsed into indexed
+     * sub-arrays by SimpleXML.
+     *
+     * @throws ServiceException on malformed XML or encoding failure
+     */
+    public function parseResponse(string $xml): array
+    {
+        $previous = libxml_use_internal_errors(true);
+        $element = simplexml_load_string($xml);
+        libxml_clear_errors();
+        libxml_use_internal_errors($previous);
 
-            // Interbank lending market rates
-            'mkr' => [
-                'url' => 'xml_mkr.asp',
-                'params' => ['date_req1', 'date_req2'],
-            ],
+        if ($element === false) {
+            throw new ServiceException('Failed to parse XML response.');
+        }
 
-            // Deposit operation rates
-            'depo' => [
-                'url' => 'xml_depo.asp',
-                'params' => ['date_req1', 'date_req2'],
-            ],
+        try {
+            $data = json_decode(json_encode($element, JSON_THROW_ON_ERROR), true, 512, JSON_THROW_ON_ERROR);
+        } catch (JsonException $e) {
+            throw new ServiceException('Failed to encode/decode XML: ' . $e->getMessage());
+        }
 
-            // Full-text search on cbr.ru
-            'search' => [
-                'url' => 'XML_search.asp',
-                'params' => ['SearchString'],
-            ],
+        if (!is_array($data)) {
+            throw new ServiceException('XML encoded to a non-array value.');
+        }
 
-            // Latest news from cbr.ru
-            'news' => [
-                'url' => 'XML_News.asp',
-                'params' => [],
-            ],
-
-            // BIC ↔ bank name lookup
-            'bic' => [
-                'url' => 'XML_bic.asp',
-                'params' => ['name', 'bic'],
-            ],
-
-            // Overnight FX-swap rates
-            'swap' => [
-                'url' => 'xml_swap.asp',
-                'params' => ['date_req1', 'date_req2'],
-            ],
-
-            // CBR investment coin prices
-            'coins' => [
-                'url' => 'XMLCoinsBase.asp',
-                'params' => ['date_req1', 'date_req2'],
-            ],
-        ];
+        return $data;
     }
 }

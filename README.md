@@ -1,16 +1,9 @@
 # xmlservice
 
-Framework-agnostic PHP library for consuming XML web services through a shared base class. Ships with a ready-made adapter for the Central Bank of Russia (CBR) XML API.
+Framework-agnostic PHP library for the [Central Bank of Russia (CBR) XML API](https://www.cbr.ru/development/SXML/).
 
----
-
-## Classes
-
-| Class | Description |
-|---|---|
-| `Leamix\XmlService\ServiceApi` | Abstract base. Sends HTTP GET requests and parses XML responses into associative arrays. |
-| `Leamix\XmlService\CbrApi` | CBR adapter: currency rates, interbank rates, BIC lookup, deposit operations, investment coins, and more. |
-| `Leamix\XmlService\Exception\ServiceException` | Thrown on connection failures and malformed XML. |
+Each API endpoint is a standalone request class. Pass it to `CbrApi::send()` to get a parsed array, or `sendRaw()` for
+the raw XML string. Swap the HTTP transport at construction time — no subclassing needed.
 
 ---
 
@@ -24,89 +17,169 @@ Framework-agnostic PHP library for consuming XML web services through a shared b
 ## Installation
 
 ```bash
-git clone https://github.com/leamix/xmlservice.git
-cd xmlservice
-composer install
+composer require leamix/xmlservice
 ```
-
-Copy the `src/` directory into your project and register the namespace with Composer's PSR-4 autoloader.
 
 ---
 
-## Usage
-
-### CbrApi — currency rates
+## Quick start
 
 ```php
 use Leamix\XmlService\CbrApi;
 use Leamix\XmlService\Exception\ServiceException;
+use Leamix\XmlService\Request\Daily;
+use Leamix\XmlService\Request\Dynamic;
+use Leamix\XmlService\Request\Ostat;
 
 $cbr = new CbrApi();
 
 try {
-    // Today's rates (parsed array)
-    $data = $cbr->daily(['date_req' => date('d/m/Y')]);
-    echo 'USD: ' . $data['Valute'][9]['Value'];
+    // Today's exchange rates → parsed array
+    $rates = $cbr->send(new Daily(new DateTimeImmutable('today')));
+    foreach ($rates['Valute'] as $v) {
+        if ($v['CharCode'] === 'USD') {
+            echo 'USD: ' . $v['Value'] . ' RUB';
+        }
+    }
 
-    // Historical rate series for USD
-    $data = $cbr->dynamic([
-        'date_req1' => '01/01/2024',
-        'date_req2' => '31/01/2024',
-        'VAL_NM_RQ' => 'R01235',
-    ]);
+    // Latest rates (no date) → raw XML string
+    $xml = $cbr->sendRaw(new Daily());
 
-    // Full-text search on cbr.ru
-    $data = $cbr->search(['SearchString' => 'key rate']);
+    // Historical USD rates for January 2024
+    $history = $cbr->send(new Dynamic(
+        new DateTimeImmutable('2024-01-01'),
+        new DateTimeImmutable('2024-01-31'),
+        'R01235' // currency code from Val request
+    ));
 
-    // Raw XML without parsing
-    $xml = $cbr->daily(['date_req' => date('d/m/Y')], false);
+    // Correspondent account balances for the last 30 days
+    $ostat = $cbr->send(new Ostat(
+        new DateTimeImmutable('-30 days'),
+        new DateTimeImmutable('today')
+    ));
 
 } catch (ServiceException $e) {
     echo 'Error: ' . $e->getMessage();
 }
 ```
 
-#### Available methods
+---
 
-| Method | Description | Parameters |
-|---|---|---|
-| `daily` | Currency rates for a date | `date_req` |
-| `daily_eng` | Currency rates, English | `date_req` |
-| `dynamic` | Rate history for a currency | `date_req1`, `date_req2`, `VAL_NM_RQ` |
-| `ostat` | Correspondent account balances | `date_req1`, `date_req2` |
-| `mkr` | Interbank lending rates | `date_req1`, `date_req2` |
-| `depo` | Deposit operation rates | `date_req1`, `date_req2` |
-| `search` | Full-text search | `SearchString` |
-| `news` | Latest news | — |
-| `bic` | BIC ↔ bank name lookup | `name`, `bic` |
-| `swap` | FX-swap overnight rates | `date_req1`, `date_req2` |
-| `coins` | Investment coin prices | `date_req1`, `date_req2` |
+## Request classes
+
+| Class      | Description                    | Constructor                                       |
+|------------|--------------------------------|---------------------------------------------------|
+| `Daily`    | Daily official rates           | `(?DateTimeInterface $date)`                      |
+| `DailyEng` | Daily rates, English           | `(?DateTimeInterface $date)`                      |
+| `Dynamic`  | Rate history for one currency  | `(DateTimeInterface $from, $to, string $valNmRq)` |
+| `Val`      | Currency code directory        | —                                                 |
+| `ValFull`  | Full currency code directory   | —                                                 |
+| `Metall`   | Precious metal prices          | `(DateTimeInterface $from, $to)`                  |
+| `Ostat`    | Correspondent account balances | `(DateTimeInterface $from, $to)`                  |
+| `Mkr`      | Interbank lending rates        | `(DateTimeInterface $from, $to)`                  |
+| `Depo`     | Deposit operation rates        | `(DateTimeInterface $from, $to)`                  |
+| `Swap`     | FX-swap overnight rates        | `(DateTimeInterface $from, $to)`                  |
+| `Bic`      | BIC ↔ bank name lookup         | `(string $name = '', string $bic = '')`           |
+| `Coins`    | Investment coin prices         | `(DateTimeInterface $from, $to)`                  |
 
 ---
 
-## Extending
+## Custom HTTP transport
 
-To wrap a new XML service, subclass `ServiceApi` and declare `$url` and `getMethodsList()`:
+`CbrApi` accepts any `HttpClientInterface` in its constructor. The interface has a single method:
 
 ```php
-namespace MyApp;
+public function get(string $url): string; // throws ServiceException on failure
+```
 
-use Leamix\XmlService\ServiceApi;
+The built-in `DefaultHttpClient` uses `file_get_contents` with HTTPS, a configurable timeout, and HTTP status code
+checking. Pass a custom implementation to add caching, retries, logging, or to use Guzzle / Symfony HttpClient:
 
-class MyApi extends ServiceApi
+### Guzzle adapter
+
+```php
+use GuzzleHttp\Client;
+use Leamix\XmlService\CbrApi;
+use Leamix\XmlService\Exception\ServiceException;
+use Leamix\XmlService\Http\HttpClientInterface;
+
+class GuzzleAdapter implements HttpClientInterface
 {
-    protected string $url = 'https://api.example.com/';
+    public function __construct(private Client $client) {}
 
-    public function getMethodsList(): array
+    public function get(string $url): string
     {
-        return [
-            'getData' => [
-                'url'    => 'data.xml',
-                'params' => ['from', 'to'],
-            ],
-        ];
+        try {
+            return (string) $this->client->get($url)->getBody();
+        } catch (\Throwable $e) {
+            throw new ServiceException("Request to {$url} failed: " . $e->getMessage(), 0, $e);
+        }
     }
 }
+
+$cbr = new CbrApi(new GuzzleAdapter(new Client(['timeout' => 30])));
+```
+
+### Symfony HttpClient adapter
+
+```php
+use Leamix\XmlService\CbrApi;
+use Leamix\XmlService\Exception\ServiceException;
+use Leamix\XmlService\Http\HttpClientInterface;
+use Symfony\Contracts\HttpClient\HttpClientInterface as SymfonyClient;
+
+class SymfonyAdapter implements HttpClientInterface
+{
+    public function __construct(private SymfonyClient $client) {}
+
+    public function get(string $url): string
+    {
+        try {
+            return $this->client->request('GET', $url)->getContent();
+        } catch (\Throwable $e) {
+            throw new ServiceException("Request to {$url} failed: " . $e->getMessage(), 0, $e);
+        }
+    }
+}
+
+$cbr = new CbrApi(new SymfonyAdapter(\Symfony\Component\HttpClient\HttpClient::create()));
+```
+
+### In-memory stub for tests
+
+```php
+use Leamix\XmlService\CbrApi;
+use Leamix\XmlService\Http\HttpClientInterface;
+use Leamix\XmlService\Request\Daily;
+
+class StubHttpClient implements HttpClientInterface
+{
+    public function get(string $url): string
+    {
+        return file_get_contents(__DIR__ . '/fixtures/daily.xml');
+    }
+}
+
+$cbr  = new CbrApi(new StubHttpClient());
+$data = $cbr->send(new Daily());
+```
+
+---
+
+## Custom request class
+
+Implement `RequestInterface` to wrap any endpoint not covered by the bundled classes:
+
+```php
+use Leamix\XmlService\Request\RequestInterface;
+
+class MyEndpoint implements RequestInterface
+{
+    public function getEndpoint(): string { return 'XML_custom.asp'; }
+    public function getParams(): array    { return ['param' => 'value']; }
+}
+
+$data = $cbr->send(new MyEndpoint());
 ```
 
 ---
@@ -115,85 +188,54 @@ class MyApi extends ServiceApi
 
 ```
 src/
+├── Http/
+│   ├── HttpClientInterface.php   # HTTP transport contract
+│   └── DefaultHttpClient.php     # file_get_contents implementation
+├── Request/
+│   ├── RequestInterface.php      # endpoint + params contract
+│   ├── FormatsDate.php           # date formatting trait
+│   ├── Daily.php
+│   ├── DailyEng.php
+│   ├── Dynamic.php
+│   ├── Val.php
+│   ├── ValFull.php
+│   ├── Metall.php
+│   ├── Ostat.php
+│   ├── Mkr.php
+│   ├── Depo.php
+│   ├── Swap.php
+│   ├── Bic.php
+│   └── Coins.php
 ├── Exception/
-│   └── ServiceException.php   # RuntimeException subclass for library errors
-├── ServiceApi.php              # Abstract base class
-└── CbrApi.php                  # CBR adapter
+│   └── ServiceException.php      # RuntimeException for all library errors
+└── CbrApi.php                    # orchestrator
 
 tests/
-├── bootstrap.php               # Loads the Composer autoloader
-├── ServiceApiTest.php          # Base class tests
-└── CbrApiTest.php              # CBR adapter tests
-```
-
----
-
-## Smoke test
-
-Run real requests against cbr.ru and print a human-readable report:
-
-```bash
-php example.php
-```
-
-Sample output:
-
-```
-────────────────────────────────────────────────────────────
-  CbrApi :: daily() — currency rates for today
-────────────────────────────────────────────────────────────
-  [OK]  Request sent: http://www.cbr.ru/scripts/XML_daily.asp?date_req=20%2F05%2F2026
-  Rate date      : 20.05.2026
-  Currencies     : 54
-    USD   71.2926 RUB (lot 1)
-    EUR   82.7871 RUB (lot 1)
-...
-  RESULT: all checks passed.
+├── bootstrap.php
+└── CbrApiTest.php
 ```
 
 ---
 
 ## Running tests
 
-### Install dependencies
-
 ```bash
 composer install
-```
-
-### Run the suite
-
-```bash
-./vendor/bin/phpunit
-```
-
-### Verbose output
-
-```bash
 ./vendor/bin/phpunit --testdox
-```
-
-Sample output:
-
-```
-CbrApi
- ✔ Instantiates successfully
- ✔ Methods list contains all expected keys
- ✔ Every method entry has url and params keys
- ✔ Daily accepts date req
- ...
-
-ServiceApi
- ✔ Constructor throws when url not set
- ✔ Parse response maps simple element
- ✔ Parse response throws on invalid xml
- ...
-
-OK (31 tests, 93 assertions)
 ```
 
 ---
 
-## Author
+## Smoke test
 
-Alexander Levin — [x8p@leamix.com](mailto:x8p@leamix.com)
+Run real requests against cbr.ru:
+
+```bash
+php examples/smoke.php
+```
+
+## Usage example
+
+```bash
+php examples/example.php
+```
