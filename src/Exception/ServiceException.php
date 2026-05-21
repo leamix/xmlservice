@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Leamix\XmlService\Exception;
+namespace Leamix\CbrPhp\Exception;
 
 class ServiceException extends \RuntimeException {
 }

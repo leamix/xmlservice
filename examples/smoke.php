@@ -2,20 +2,20 @@
 
 declare(strict_types=1);
 
-use Leamix\XmlService\CbrApi;
-use Leamix\XmlService\Exception\ServiceException;
-use Leamix\XmlService\Request\Bic;
-use Leamix\XmlService\Request\Coins;
-use Leamix\XmlService\Request\Daily;
-use Leamix\XmlService\Request\DailyEng;
-use Leamix\XmlService\Request\Depo;
-use Leamix\XmlService\Request\Dynamic;
-use Leamix\XmlService\Request\Metal;
-use Leamix\XmlService\Request\Mkr;
-use Leamix\XmlService\Request\Ostat;
-use Leamix\XmlService\Request\Swap;
-use Leamix\XmlService\Request\Val;
-use Leamix\XmlService\Request\ValFull;
+use Leamix\CbrPhp\CbrApi;
+use Leamix\CbrPhp\Exception\ServiceException;
+use Leamix\CbrPhp\Request\Bic;
+use Leamix\CbrPhp\Request\Coins;
+use Leamix\CbrPhp\Request\Daily;
+use Leamix\CbrPhp\Request\DailyEng;
+use Leamix\CbrPhp\Request\Depo;
+use Leamix\CbrPhp\Request\Dynamic;
+use Leamix\CbrPhp\Request\Metal;
+use Leamix\CbrPhp\Request\Mkr;
+use Leamix\CbrPhp\Request\Ostat;
+use Leamix\CbrPhp\Request\Swap;
+use Leamix\CbrPhp\Request\Val;
+use Leamix\CbrPhp\Request\ValFull;
 
 $autoload = dirname(__DIR__) . '/vendor/autoload.php';
 if (!is_file($autoload)) {

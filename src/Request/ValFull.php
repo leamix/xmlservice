@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Leamix\XmlService\Request;
+namespace Leamix\CbrPhp\Request;
 
 class ValFull implements RequestInterface
 {

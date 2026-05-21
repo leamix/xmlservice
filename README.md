@@ -1,35 +1,29 @@
-# xmlservice
+# CBR php
 
 Framework-agnostic PHP library for the [Central Bank of Russia (CBR) XML API](https://www.cbr.ru/development/SXML/).
 
 Each API endpoint is a standalone request class. Pass it to `CbrApi::send()` to get a parsed array, or `sendRaw()` for
 the raw XML string. Swap the HTTP transport at construction time — no subclassing needed.
 
----
-
 ## Requirements
 
 - PHP >= 7.4
 - Composer
 
----
-
 ## Installation
 
 ```bash
-composer require leamix/xmlservice
+composer require leamix/cbr-php
 ```
-
----
 
 ## Quick start
 
 ```php
-use Leamix\XmlService\CbrApi;
-use Leamix\XmlService\Exception\ServiceException;
-use Leamix\XmlService\Request\Daily;
-use Leamix\XmlService\Request\Dynamic;
-use Leamix\XmlService\Request\Ostat;
+use Leamix\CbrPhp\CbrApi;
+use Leamix\CbrPhp\Exception\ServiceException;
+use Leamix\CbrPhp\Request\Daily;
+use Leamix\CbrPhp\Request\Dynamic;
+use Leamix\CbrPhp\Request\Ostat;
 
 $cbr = new CbrApi();
 
@@ -63,8 +57,6 @@ try {
 }
 ```
 
----
-
 ## Request classes
 
 | Class      | Description                    | Constructor                                       |
@@ -82,8 +74,6 @@ try {
 | `Bic`      | BIC ↔ bank name lookup         | `(string $name = '', string $bic = '')`           |
 | `Coins`    | Investment coin prices         | `(DateTimeInterface $from, $to)`                  |
 
----
-
 ## Custom HTTP transport
 
 `CbrApi` accepts any `HttpClientInterface` in its constructor. The interface has a single method:
@@ -99,9 +89,9 @@ checking. Pass a custom implementation to add caching, retries, logging, or to u
 
 ```php
 use GuzzleHttp\Client;
-use Leamix\XmlService\CbrApi;
-use Leamix\XmlService\Exception\ServiceException;
-use Leamix\XmlService\Http\HttpClientInterface;
+use Leamix\CbrPhp\CbrApi;
+use Leamix\CbrPhp\Exception\ServiceException;
+use Leamix\CbrPhp\Http\HttpClientInterface;
 
 class GuzzleAdapter implements HttpClientInterface
 {
@@ -123,9 +113,9 @@ $cbr = new CbrApi(new GuzzleAdapter(new Client(['timeout' => 30])));
 ### Symfony HttpClient adapter
 
 ```php
-use Leamix\XmlService\CbrApi;
-use Leamix\XmlService\Exception\ServiceException;
-use Leamix\XmlService\Http\HttpClientInterface;
+use Leamix\CbrPhp\CbrApi;
+use Leamix\CbrPhp\Exception\ServiceException;
+use Leamix\CbrPhp\Http\HttpClientInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface as SymfonyClient;
 
 class SymfonyAdapter implements HttpClientInterface
@@ -148,9 +138,9 @@ $cbr = new CbrApi(new SymfonyAdapter(\Symfony\Component\HttpClient\HttpClient::c
 ### In-memory stub for tests
 
 ```php
-use Leamix\XmlService\CbrApi;
-use Leamix\XmlService\Http\HttpClientInterface;
-use Leamix\XmlService\Request\Daily;
+use Leamix\CbrPhp\CbrApi;
+use Leamix\CbrPhp\Http\HttpClientInterface;
+use Leamix\CbrPhp\Request\Daily;
 
 class StubHttpClient implements HttpClientInterface
 {
@@ -164,14 +154,12 @@ $cbr  = new CbrApi(new StubHttpClient());
 $data = $cbr->send(new Daily());
 ```
 
----
-
 ## Custom request class
 
 Implement `RequestInterface` to wrap any endpoint not covered by the bundled classes:
 
 ```php
-use Leamix\XmlService\Request\RequestInterface;
+use Leamix\CbrPhp\Request\RequestInterface;
 
 class MyEndpoint implements RequestInterface
 {
@@ -181,8 +169,6 @@ class MyEndpoint implements RequestInterface
 
 $data = $cbr->send(new MyEndpoint());
 ```
-
----
 
 ## Project structure
 
@@ -223,8 +209,6 @@ tests/
 composer install
 ./vendor/bin/phpunit --testdox
 ```
-
----
 
 ## Smoke test
 

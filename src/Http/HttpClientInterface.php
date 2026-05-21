@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Leamix\XmlService\Http;
+namespace Leamix\CbrPhp\Http;
 
-use Leamix\XmlService\Exception\ServiceException;
+use Leamix\CbrPhp\Exception\ServiceException;
 
 interface HttpClientInterface
 {

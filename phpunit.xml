@@ -5,7 +5,7 @@
          colors="true"
          stopOnFailure="false">
     <testsuites>
-        <testsuite name="xmlservice">
+        <testsuite name="cbr-php">
             <directory>tests</directory>
         </testsuite>
     </testsuites>

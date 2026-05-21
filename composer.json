@@ -1,8 +1,8 @@
 {
-    "name": "leamix/xmlservice",
+    "name": "leamix/cbr-php",
     "description": "Framework-agnostic PHP adapter for the Central Bank of Russia (CBR) XML API",
     "keywords": ["cbr", "central-bank-russia", "currency-rates", "xml", "api", "php"],
-    "homepage": "https://github.com/leamix/xmlservice",
+    "homepage": "https://github.com/leamix/cbr-php",
     "type": "library",
     "license": "MIT",
     "authors": [
@@ -12,7 +12,8 @@
         }
     ],
     "require": {
-        "php": ">=7.4"
+        "php": ">=7.4",
+        "ext-json": "*"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.0"
@@ -23,12 +24,12 @@
     "minimum-stability": "stable",
     "autoload": {
         "psr-4": {
-            "Leamix\\XmlService\\": "src/"
+            "Leamix\\CbrPhp\\": "src/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Leamix\\XmlService\\Tests\\": "tests/"
+            "Leamix\\CbrPhp\\Tests\\": "tests/"
         }
     }
 }

@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Leamix\XmlService;
+namespace Leamix\CbrPhp;
 
 use JsonException;
-use Leamix\XmlService\Exception\ServiceException;
-use Leamix\XmlService\Http\DefaultHttpClient;
-use Leamix\XmlService\Http\HttpClientInterface;
-use Leamix\XmlService\Request\RequestInterface;
+use Leamix\CbrPhp\Exception\ServiceException;
+use Leamix\CbrPhp\Http\DefaultHttpClient;
+use Leamix\CbrPhp\Http\HttpClientInterface;
+use Leamix\CbrPhp\Request\RequestInterface;
 
 /**
  * Adapter for the Central Bank of Russia XML service.

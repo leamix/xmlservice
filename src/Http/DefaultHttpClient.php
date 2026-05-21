@@ -2,13 +2,13 @@
 
 declare(strict_types=1);
 
-namespace Leamix\XmlService\Http;
+namespace Leamix\CbrPhp\Http;
 
-use Leamix\XmlService\Exception\ServiceException;
+use Leamix\CbrPhp\Exception\ServiceException;
 
 class DefaultHttpClient implements HttpClientInterface
 {
-    private const USER_AGENT = 'leamix/xmlservice';
+    private const USER_AGENT = 'leamix/cbr-php';
 
     private int $timeout;
 
